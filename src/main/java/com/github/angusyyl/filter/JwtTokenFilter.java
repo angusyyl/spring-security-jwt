@@ -8,6 +8,8 @@ import javax.servlet.ServletException;
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpHeaders;
 import org.springframework.security.authentication.BadCredentialsException;
@@ -26,6 +28,7 @@ import io.jsonwebtoken.ExpiredJwtException;
 
 @Component
 public class JwtTokenFilter extends OncePerRequestFilter {
+	private static final Logger LOGGER = LoggerFactory.getLogger(JwtTokenFilter.class);
 
 	@Autowired
 	private IUserRepo userRepo;
@@ -41,6 +44,13 @@ public class JwtTokenFilter extends OncePerRequestFilter {
 			throws ServletException, IOException {
 
 		try {
+			// Pass it if it is a refresh token request
+			final String requestURL = request.getRequestURL().toString();
+			if (requestURL.contains("refreshtoken")) {
+				chain.doFilter(request, response);
+				return;
+			}
+
 			// Get authorization header and validate
 			final String header = request.getHeader(HttpHeaders.AUTHORIZATION);
 			if (!StringUtils.hasText(header) || !header.startsWith("Bearer ")) {
@@ -64,8 +74,7 @@ public class JwtTokenFilter extends OncePerRequestFilter {
 			authentication.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
 
 			SecurityContextHolder.getContext().setAuthentication(authentication);
-			System.out.println(
-					"authenticated name is " + SecurityContextHolder.getContext().getAuthentication().getName());
+			LOGGER.info("Authenticated username: {}", SecurityContextHolder.getContext().getAuthentication().getName());
 		} catch (ExpiredJwtException ex) {
 			request.setAttribute("exception", ex);
 			throw ex;

@@ -33,15 +33,22 @@ public class JwtUtil {
 	private static final Logger LOGGER = LoggerFactory.getLogger(JwtUtil.class);
 
 	private int jwtExpiration;
-	private SecretKey key = Keys.secretKeyFor(SignatureAlgorithm.HS512);
+	private int jwtRefreshExpiration;
+	private SecretKey accessTokenSecretKey = Keys.secretKeyFor(SignatureAlgorithm.HS512);
+	private SecretKey refreshTokenSecretKey = Keys.secretKeyFor(SignatureAlgorithm.HS512);
 
 	@Value("${jwt.expiration}")
 	public void setJwtExpiration(int jwtExpiration) {
 		this.jwtExpiration = jwtExpiration;
 	}
 
+	@Value("${jwt.refresh.expiration}")
+	public void setJwtRefreshExpiration(int jwtRefreshExpiration) {
+		this.jwtRefreshExpiration = jwtRefreshExpiration;
+	}
+
 	// generate token for user
-	public String generateToken(UserDetails userDetails) {
+	public String generateToken(UserDetails userDetails, String type) {
 		Map<String, Object> claims = new HashMap<>();
 		Collection<? extends GrantedAuthority> roles = userDetails.getAuthorities();
 		if (roles.contains(new SimpleGrantedAuthority("ROLE_ADMIN"))) {
@@ -50,19 +57,50 @@ public class JwtUtil {
 		if (roles.contains(new SimpleGrantedAuthority("ROLE_USER"))) {
 			claims.put("isUser", true);
 		}
-		return doGenerateToken(claims, userDetails.getUsername());
+		if ("access".equals(type)) {
+			return doGenerateToken(claims, userDetails.getUsername());
+		} else if ("refresh".equals(type)) {
+			return doGenerateRefreshToken(claims, userDetails.getUsername());
+		} else {
+			throw new RuntimeException("Invalid token type.");
+		}
 	}
 
 	private String doGenerateToken(Map<String, Object> claims, String subject) {
 		return Jwts.builder().setClaims(claims).setSubject(subject).setIssuedAt(new Date(System.currentTimeMillis()))
-				.setExpiration(new Date(System.currentTimeMillis() + jwtExpiration)).signWith(key).compact();
+				.setExpiration(new Date(System.currentTimeMillis() + jwtExpiration)).signWith(accessTokenSecretKey)
+				.compact();
 	}
 
-	public boolean validateToken(String authToken) {
+	private String doGenerateRefreshToken(Map<String, Object> claims, String subject) {
+		return Jwts.builder().setClaims(claims).setSubject(subject).setIssuedAt(new Date(System.currentTimeMillis()))
+				.setExpiration(new Date(System.currentTimeMillis() + jwtRefreshExpiration))
+				.signWith(refreshTokenSecretKey).compact();
+	}
+
+	public boolean validateToken(String token) {
 		try {
 			// Jwt token has not been tampered with
-			Jwts.parserBuilder().setSigningKey(key).build().parseClaimsJws(authToken);
+			Jwts.parserBuilder().setSigningKey(accessTokenSecretKey).build().parseClaimsJws(token);
 			return true;
+		} catch (SignatureException | MalformedJwtException | UnsupportedJwtException | IllegalArgumentException ex) {
+			ex.printStackTrace();
+			throw new BadCredentialsException("INVALID_CREDENTIALS", ex);
+		} catch (ExpiredJwtException ex) {
+//			String[] split_string = authToken.split("\\.");
+//	        String base64EncodedHeader = split_string[0];
+//	        String base64EncodedBody = split_string[1];
+//	        String header = new String(Base64.getDecoder().decode(base64EncodedHeader));
+//	        String body = new String(Base64.getDecoder().decode(base64EncodedBody));
+			throw ex;
+//			throw new ExpiredJwtException(claims.getHeader(), claims.getBody(), "Token has Expired", ex);
+		}
+	}
+
+	public Jws<Claims> validateRefreshToken(String token) {
+		try {
+			// Jwt token has not been tampered with
+			return Jwts.parserBuilder().setSigningKey(refreshTokenSecretKey).build().parseClaimsJws(token);
 		} catch (SignatureException | MalformedJwtException | UnsupportedJwtException | IllegalArgumentException ex) {
 			throw new BadCredentialsException("INVALID_CREDENTIALS", ex);
 		} catch (ExpiredJwtException ex) {
@@ -77,14 +115,15 @@ public class JwtUtil {
 	}
 
 	public String getUsername(String authToken) {
-		Jws<Claims> claims = Jwts.parserBuilder().setSigningKey(key).build().parseClaimsJws(authToken);
+		Jws<Claims> claims = Jwts.parserBuilder().setSigningKey(accessTokenSecretKey).build().parseClaimsJws(authToken);
 		return claims.getBody().getSubject();
 	}
 
 	public List<SimpleGrantedAuthority> getRolesFromToken(String authToken) {
 		List<SimpleGrantedAuthority> roles = null;
 
-		Claims claims = Jwts.parserBuilder().setSigningKey(key).build().parseClaimsJws(authToken).getBody();
+		Claims claims = Jwts.parserBuilder().setSigningKey(accessTokenSecretKey).build().parseClaimsJws(authToken)
+				.getBody();
 		Boolean isAdmin = claims.get("isAdmin", Boolean.class);
 		Boolean isUser = claims.get("isUser", Boolean.class);
 
