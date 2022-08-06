@@ -4,18 +4,23 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Collectors;
 
+import javax.annotation.security.RolesAllowed;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PostAuthorize;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.AuthenticationException;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -42,7 +47,7 @@ public class Controller {
 
 	// this should be stored in safe places, e.g. Redis
 	private List<String> refreshTokens = new ArrayList<String>();
-	
+
 	@Autowired
 	private AuthenticationManager authenticationManager;
 
@@ -87,14 +92,16 @@ public class Controller {
 					UserDetails userDetails = userDetailsService.loadUserByUsername(claims.getBody().getSubject());
 					String accessToken = jwtTokenUtil.generateToken(userDetails, "access");
 					LOGGER.info("New access token generated.");
-					
+
 					// rotate refresh token
-					this.refreshTokens = this.refreshTokens.stream().filter(token -> !token.equals(refreshToken)).collect(Collectors.toList());
+					this.refreshTokens = this.refreshTokens.stream().filter(token -> !token.equals(refreshToken))
+							.collect(Collectors.toList());
 					String newRefreshToken = jwtTokenUtil.generateToken(userDetails, "refresh");
 					this.refreshTokens.add(newRefreshToken);
 					LOGGER.info("Rotate refresh token.");
 					return ResponseEntity.ok(new AuthResponse(accessToken, newRefreshToken));
-				} catch (SignatureException | MalformedJwtException | UnsupportedJwtException | IllegalArgumentException | ExpiredJwtException ex) {
+				} catch (SignatureException | MalformedJwtException | UnsupportedJwtException | IllegalArgumentException
+						| ExpiredJwtException ex) {
 					return ResponseEntity.status(HttpStatus.FORBIDDEN).body(ex.getMessage());
 				}
 			}
@@ -122,23 +129,36 @@ public class Controller {
 	}
 
 	/**
-	 * Endpoints accessible by ADMIN roles only.
+	 * Endpoints accessible by IT ADMIN roles only.
 	 * 
 	 * @return
 	 */
+	@RolesAllowed("IT_ADMIN")
 	@GetMapping("/admin/users")
 	public String getAllUsers() {
 		return "List all users.";
 	}
 
 	/**
-	 * Endpoints accessible by ADMIN roles only.
+	 * Endpoints accessible by IT_ADMIN roles only.
 	 * 
 	 * @return
 	 */
-	@GetMapping("/admin/stats")
+	@RolesAllowed("IT_ADMIN")
+	@GetMapping("/admin/stats/system")
 	public String getSystemStats() {
 		return "Report statistics info of the system.";
+	}
+
+	/**
+	 * Endpoints accessible by HR_ADMIN roles only.
+	 * 
+	 * @return
+	 */
+	@RolesAllowed("HR_ADMIN")
+	@GetMapping("/admin/stats/candidates")
+	public String getCandidnateStats() {
+		return "Report statistics info of the candidates.";
 	}
 
 	/**
@@ -149,5 +169,16 @@ public class Controller {
 	@GetMapping("/private/search")
 	public String search() {
 		return "User performs a search operation.";
+	}
+
+	/**
+	 * Endpoints accessible by an user itself.
+	 * 
+	 * @return
+	 */
+	@PostAuthorize("#username == authentication.principal.username")
+	@GetMapping("/private/users/{username}")
+	public String getUserInfo(@PathVariable("username") String username) {
+		return "Looked up user info of " + username;
 	}
 }

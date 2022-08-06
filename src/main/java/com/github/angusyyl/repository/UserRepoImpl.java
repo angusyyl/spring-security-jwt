@@ -15,6 +15,7 @@ import com.github.angusyyl.dto.AppUser;
 
 /***
  * This is just a practice. So real DB connection is skipped.
+ * 
  * @author Angus Yiu
  *
  */
@@ -25,11 +26,18 @@ public class UserRepoImpl implements IUserRepo {
 	private List<AppUser> users = new ArrayList<AppUser>();
 
 	public UserRepoImpl() {
-		Collection<? extends GrantedAuthority> andyAuthorities = Arrays
-				.asList(new SimpleGrantedAuthority("ROLE_ADMIN"));
+		Collection<? extends GrantedAuthority> andyAuthorities = Arrays.asList(new SimpleGrantedAuthority("ROLE_ADMIN"),
+				new SimpleGrantedAuthority("ROLE_IT_ADMIN"));
+		Collection<? extends GrantedAuthority> katieAuthorities = Arrays
+				.asList(new SimpleGrantedAuthority("ROLE_ADMIN"), new SimpleGrantedAuthority("ROLE_HR_ADMIN"));
 		Collection<? extends GrantedAuthority> lucyAuthorities = Arrays.asList(new SimpleGrantedAuthority("ROLE_USER"));
-		this.users.add(new AppUser("andy", "1234", 20, andyAuthorities));
-		this.users.add(new AppUser("lucy", "1234", 18, lucyAuthorities));
+		Collection<? extends GrantedAuthority> samAuthorities = Arrays.asList(new SimpleGrantedAuthority("ROLE_USER"),
+				new SimpleGrantedAuthority("ROLE_CANDIDATE"));
+
+		this.users.add(new AppUser("andy", "1234", 50, "IT Manager", andyAuthorities));
+		this.users.add(new AppUser("katie", "1234", 28, "HR Manager", katieAuthorities));
+		this.users.add(new AppUser("lucy", "1234", 18, "HR Officer", lucyAuthorities));
+		this.users.add(new AppUser("sam", "1234", 18, "Software Engineer", samAuthorities));
 	}
 
 	public AppUser findByUsername(String username) {

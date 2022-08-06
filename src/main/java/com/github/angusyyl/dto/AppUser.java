@@ -15,12 +15,15 @@ public class AppUser implements UserDetails {
 	private String username;
 	private String password;
 	private int age;
+	private String title;
 	private Collection<? extends GrantedAuthority> authorities;
 
-	public AppUser(String username, String password, int age, Collection<? extends GrantedAuthority> authorities) {
+	public AppUser(String username, String password, int age, String title,
+			Collection<? extends GrantedAuthority> authorities) {
 		this.username = username;
 		this.password = passwordEncoder.encode(password);
 		this.age = age;
+		this.title = title;
 		this.authorities = authorities;
 	}
 
@@ -46,6 +49,14 @@ public class AppUser implements UserDetails {
 
 	public void setAge(int age) {
 		this.age = age;
+	}
+
+	public String getTitle() {
+		return title;
+	}
+
+	public void setTitle(String title) {
+		this.title = title;
 	}
 
 	@Override
